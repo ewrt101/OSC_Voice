@@ -19,7 +19,7 @@ using OSC.Core;
 
 namespace SpeechToText.AssemblyAI
 {
-    internal class AssemblyAI
+    internal class AssemblyAILive
     {
 
         UdpClient udpClient;
@@ -38,7 +38,10 @@ namespace SpeechToText.AssemblyAI
         MemoryStream memStream = new MemoryStream(0);
 
         long milliseconds;
-        public AssemblyAI(string ip, string path, string path2, int _device)
+
+        WasapiCapture? waveSource;
+        MMDeviceCollection? devices;
+        public AssemblyAILive(string ip, string path, string path2, int _device)
         {
             IP = ip;
             PATH = path;
@@ -182,8 +185,7 @@ namespace SpeechToText.AssemblyAI
             client.Dispose();
         }
 
-        WasapiCapture? waveSource;
-        MMDeviceCollection? devices;
+        
 
         void RecordMic()
         {
@@ -218,6 +220,170 @@ namespace SpeechToText.AssemblyAI
 
                 client.Send(obj.ToString());
             }
+        }
+    }
+
+    internal class AssemblyAIChunk
+    {
+
+        UdpClient udpClient;
+        OSC_Client Client;
+        string IP = "127.0.0.1";
+        string PATH = "/path";
+        string PATH2 = "/path2"; // not used
+        int DEVICE = 0;
+
+        string KEY = "";
+
+
+        string STREAM_URI = "https://api.assemblyai.com/v2/stream";
+
+        WebsocketClient client;
+        Uri url;
+        MemoryStream memStream = new MemoryStream(0);
+
+        WasapiCapture? waveSource;
+        MMDeviceCollection? devices;
+
+        public AssemblyAIChunk(string ip, string path, string path2, int _device)
+        {
+            IP = ip;
+            PATH = path;
+            PATH2 = path2;
+
+            DEVICE = _device;
+
+
+            //set up OSC
+            udpClient = new UdpClient();
+            udpClient.Connect(IPAddress.Parse(IP), 9000);
+            Client = new OSC_Client();
+
+            
+
+        }
+
+        public void Start(string key)
+        {
+            KEY = key;
+            //set up recording
+            var deviceEnumerator = new MMDeviceEnumerator();
+            devices = deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
+            Console.WriteLine();
+            Console.WriteLine("Now listening on " + devices[DEVICE].FriendlyName);
+            waveSource = new WasapiCapture(devices[DEVICE]);
+
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine("Enter to exit");
+            Console.ResetColor();
+
+            RecordMic();
+        }
+
+        async Task<string> SendPacket(string key, string data, bool format, bool punct)
+        {
+            using (HttpClient httpClient = new HttpClient())
+            {
+                httpClient.DefaultRequestHeaders.Add(
+                  "Authorization",
+                  key
+                );
+
+
+                var json = new
+                {
+                    audio_data = data,
+                    format_text = format,
+                    punctuate = punct
+                };
+
+                StringContent payload = new StringContent(
+                  JsonConvert.SerializeObject(json),
+                  Encoding.UTF8,
+                  "application/json"
+                );
+                HttpResponseMessage response = await httpClient.PostAsync(STREAM_URI, payload);
+
+                if (response.IsSuccessStatusCode == false)
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine("You must speek for less than 15 seconds");
+                    Console.ResetColor();
+                    return "";
+                }
+
+                var responseJson = response.Content.ReadAsStringAsync();
+                JObject obj = JObject.Parse(await responseJson);
+                string words = (string)obj["text"];
+                return words;
+            }
+        }
+
+        public void RecordMic()
+        {
+            Byte[] sendBytes;
+            string outWord;
+            bool triggered = false;
+            ConsoleKeyInfo cki;
+            waveSource.WaveFormat = new WaveFormat(16000, 1);
+            waveSource.DataAvailable += new EventHandler<WaveInEventArgs>(waveSource_DataAvailable);
+            while (true)
+            {
+                if (devices[DEVICE].AudioMeterInformation.MasterPeakValue > 0.05)
+                {
+                    //set typing display
+                    sendBytes = Client.ConstructMessage(PATH2, true);
+                    udpClient.Send(sendBytes, sendBytes.Length);
+
+                    //record audio
+                    waveSource.StartRecording();
+
+                    while (devices[DEVICE].AudioMeterInformation.MasterPeakValue > 0.02)
+                    {
+                        Thread.Sleep(100);
+                    }
+                    waveSource.StopRecording();
+
+                    byte[] buffer = memStream.ToArray();
+                    memStream.SetLength(0);
+
+                    //decode audio to words
+                    outWord = SendPacket(KEY, Convert.ToBase64String(buffer, 0, buffer.Length), true, true).GetAwaiter().GetResult();
+
+                    Console.WriteLine("Text: " + outWord);
+
+                    //check if quit
+                    if (outWord == "leave program")
+                    {
+                        //unset typing display
+                        sendBytes = Client.ConstructMessage(PATH2, false);
+                        udpClient.Send(sendBytes, sendBytes.Length);
+                        return;
+                    }
+
+                    //send msg
+                    sendBytes = Client.ConstructMessage(PATH, outWord, true);
+                    udpClient.Send(sendBytes, sendBytes.Length);
+                    //unset typing display
+                    sendBytes = Client.ConstructMessage(PATH2, false);
+                    udpClient.Send(sendBytes, sendBytes.Length);
+                }
+                
+                
+                if (Console.KeyAvailable == true)
+                {
+                    cki = Console.ReadKey(true);
+                    if (cki.Key == ConsoleKey.Enter)
+                    {
+                        return;
+                    }
+                } 
+            }
+        }
+
+        void waveSource_DataAvailable(object sender, WaveInEventArgs e)
+        {
+            memStream.Write(e.Buffer, 0, e.BytesRecorded);
         }
     }
 }

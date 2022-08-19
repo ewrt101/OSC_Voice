@@ -50,18 +50,28 @@ namespace OSC.Display
         void TimeDisplay()
         {
             Byte[] sendBytes;
+            ConsoleKeyInfo cki;
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine("Enter to exit");
+            Console.ResetColor();
+
             try
             {
-
                 OSC_Client Client = new OSC_Client();
-
                 while (true)
                 {
                     Console.WriteLine("Current time: " + DateTime.Now.ToString("hh:mm tt"));
                     sendBytes = Client.ConstructMessage(PATH, DateTime.Now.ToString("hh:mm tt"), true);
                     udpClient.Send(sendBytes, sendBytes.Length);
                     Task.Delay(DELAY).Wait();
-
+                    if (Console.KeyAvailable == true)
+                    {
+                        cki = Console.ReadKey(true);
+                        if (cki.Key == ConsoleKey.Enter)
+                        {
+                            break;
+                        }
+                    }
                 }
 
                 udpClient.Close();

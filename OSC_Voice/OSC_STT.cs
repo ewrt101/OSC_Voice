@@ -95,6 +95,9 @@ namespace OSC.SpeechToText
 
         public void Start()
         {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine("Enter to exit");
+            Console.ResetColor();
             RecordMic();
             //DetectWords();
         }
@@ -104,6 +107,7 @@ namespace OSC.SpeechToText
             Byte[] sendBytes;
             string outWord;
             bool triggered = false;
+            ConsoleKeyInfo cki;
             waveSource.WaveFormat = new WaveFormat(16000, 1);
             waveSource.DataAvailable += new EventHandler<WaveInEventArgs>(waveSource_DataAvailable);
             while (true)
@@ -146,6 +150,15 @@ namespace OSC.SpeechToText
                     //unset typing display
                     sendBytes = Client.ConstructMessage(PATH2, false);
                     udpClient.Send(sendBytes, sendBytes.Length);
+                }
+
+                if (Console.KeyAvailable == true)
+                {
+                    cki = Console.ReadKey(true);
+                    if (cki.Key == ConsoleKey.Enter)
+                    {
+                        return;
+                    }
                 }
             }
             

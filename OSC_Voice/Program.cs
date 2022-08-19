@@ -23,7 +23,8 @@ class Program
             Console.WriteLine("1)   Display time");
             Console.WriteLine("2)   Read from text file");
             Console.WriteLine("3)   Speech To Text (Local)");
-            Console.WriteLine("4)   Speech To Text (AssemblyAI)");
+            Console.WriteLine("4)   Speech To Text (AssemblyAI Realtime)");
+            Console.WriteLine("5)   Speech To Text (AssemblyAI Chunk)");
             Console.WriteLine("");
             Console.ForegroundColor = ConsoleColor.DarkGray;
             Console.WriteLine("T)   Test");
@@ -51,15 +52,43 @@ class Program
                 AssemblyAI();
             }
 
+            if (input == "AssemblyAIChunk" || input == "5")
+            {
+                AssemblyAIChunk();
+            }
+
             //test
             if (input == "test" || input == "t")
             {
                 Testing();
             }
-            Console.WriteLine("");
         }
     }
 
+    
+    static int PickMic()
+    {
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("Pick a Mic #");
+        Console.ResetColor();
+
+        var deviceEnumerator = new MMDeviceEnumerator();
+        var devices = deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
+        for (var i = 0; i < devices.Count; i++)
+        //foreach (var device in devices)
+        {
+            Console.WriteLine((i + 1).ToString() + ":   " + devices[i].DeviceFriendlyName);
+        }
+        var input2 = Console.ReadLine();
+        int number = Int32.Parse(input2);
+        Console.Clear();
+        return number-1;
+    }
+
+
+    //
+    // DIFFRENT MODE START FUNCTIONS
+    //
     static void Testing()
     {
         UdpClient udpClient = new UdpClient();
@@ -100,38 +129,22 @@ class Program
 
     static void STT()
     {
-
-        Console.WriteLine("Pick a Mic #");
-
-        var deviceEnumerator = new MMDeviceEnumerator();
-        var devices = deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
-        foreach (var device in devices)
-        {
-            Console.WriteLine("     " + device.DeviceFriendlyName);
-        }
-        var input2 = Console.ReadLine();
-        int number = Int32.Parse(input2);
-        //OSC_STT stt = new OSC_STT("127.0.0.1", "/chatbox/input", "/chatbox/typing", "model.tflite", "huge-vocabulary.scorer", number);
-        OSC_STT stt = new OSC_STT("127.0.0.1", "/chatbox/input", "/chatbox/typing", "model.tflite", "vocabulary.scorer", number);
+        OSC_STT stt = new OSC_STT("127.0.0.1", "/chatbox/input", "/chatbox/typing", "model.tflite", "vocabulary.scorer", PickMic());
         stt.Start();
     }
 
     static void AssemblyAI()
     {
-        Console.WriteLine("Pick a Mic #");
-
-        var deviceEnumerator = new MMDeviceEnumerator();
-        var devices = deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
-        foreach (var device in devices)
-        {
-            Console.WriteLine("     " + device.DeviceFriendlyName);
-        }
-        var input2 = Console.ReadLine();
-        int number = Int32.Parse(input2);
-
         string[] lines = System.IO.File.ReadAllLines("AssemblyAI.key");
-        AssemblyAI fileTime = new AssemblyAI("127.0.0.1", "/chatbox/input", "/chatbox/typing", number);
-        fileTime.Start(lines[0], 3600);
+        AssemblyAILive realtime = new AssemblyAILive("127.0.0.1", "/chatbox/input", "/chatbox/typing", PickMic());
+        realtime.Start(lines[0], 3600);
+    }
+
+    static void AssemblyAIChunk()
+    {
+        string[] lines = System.IO.File.ReadAllLines("AssemblyAI.key");
+        AssemblyAIChunk Chunk = new AssemblyAIChunk("127.0.0.1", "/chatbox/input", "/chatbox/typing", PickMic());
+        Chunk.Start(lines[0]);
     }
 
 }
