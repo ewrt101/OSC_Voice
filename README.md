@@ -7,7 +7,7 @@ OSC Voice is a OSC based "voice" program for VRChat.
 2) reads line by line from DisplayText.txt and outputs to VRChat Chatbox
 3) local Speech to text and outputs to VRChat Chatbox
 4) AssemblyAI Speech to text and outputs to VRChat Chatbox, this is running in realtime mode (AssemblyAI is a paid service)
-4) AssemblyAI Speech to text and outputs to VRChat Chatbox, this is running in stream/chunk mode (AssemblyAI is a paid service *but this mode might work with a free account, im looking into it*)
+4) AssemblyAI Speech to text and outputs to VRChat Chatbox, this is running in stream/chunk mode (AssemblyAI is a paid service)
 
 
 ## local SST
